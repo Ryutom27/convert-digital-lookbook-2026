@@ -8,6 +8,12 @@
   @see assets/lookbook.js
 {%- endcomment -%}
 
+<script
+  src="{{ 'lookbook.js' | asset_url }}"
+  type="module"
+  fetchpriority="low"
+></script>
+
 {% liquid
   assign lookbook = section.settings.lookbook
   assign products = lookbook.products.value
@@ -148,6 +154,14 @@
     animation: lookbook-pulse 1.4s ease-in-out infinite;
   }
 
+  .lookbook__thumb-button {
+    all: unset;
+    display: block;
+    width: 100%;
+    height: 100%;
+    cursor: pointer;
+  }
+
   .lookbook__thumb img {
     width: 100%;
     height: 100%;
@@ -175,6 +189,31 @@
 
   .lookbook__dialog::backdrop {
     background: rgb(0 0 0 / 0.3);
+  }
+
+  .lookbook__dialog-image {
+    width: 100%;
+    height: auto;
+    display: block;
+  }
+
+  .lookbook__dialog-content {
+    display: flex;
+    flex-direction: column;
+    gap: var(--margin-xs, 8px);
+    padding: var(--margin-md, 16px);
+  }
+
+  .lookbook__dialog-title {
+    font-weight: 500;
+  }
+
+  .lookbook__dialog-compare-at {
+    color: var(--color-foreground-subdued);
+  }
+
+  .lookbook__dialog-variant-select {
+    width: 100%;
   }
 {% endstylesheet %}
 
