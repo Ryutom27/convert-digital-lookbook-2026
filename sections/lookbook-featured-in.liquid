@@ -1,0 +1,89 @@
+{%- comment -%}
+  Product-page reverse lookup: shows any lookbook(s) featuring the current
+  product. Scans all `lookbook` metaobject entries at runtime (O(n) in lookbook
+  count) rather than using a synced back-reference metafield — a documented
+  scale trade-off, see README.
+
+  The scan itself runs natively in Liquid — it only reads the metaobject's
+  product references (a native reference type) to check handles, it never
+  resolves price/image. The Storefront API is still reserved for the actual
+  shoppable product data once a match is found (see snippets/lookbook-card.liquid),
+  consistent with the handles-only constraint.
+
+  Renders nothing if the product isn't featured in any lookbook.
+{%- endcomment -%}
+
+{% liquid
+  assign has_match = false
+  for lb in shop.metaobjects.lookbook.values
+    assign lb_handles = lb.products.value | map: 'handle'
+    if lb_handles contains product.handle
+      assign has_match = true
+      break
+    endif
+  endfor
+%}
+
+{% if has_match %}
+  <div
+    class="section section--page-width lookbook-featured-in spacing-style"
+    style="{% render 'spacing-style', settings: section.settings %}"
+  >
+    {% for lb in shop.metaobjects.lookbook.values %}
+      {% assign lb_handles = lb.products.value | map: 'handle' %}
+      {% if lb_handles contains product.handle %}
+        <p class="lookbook-featured-in__label">Featured in</p>
+        {% render 'lookbook-card', lookbook: lb %}
+      {% endif %}
+    {% endfor %}
+  </div>
+{% endif %}
+
+{% stylesheet %}
+  .lookbook-featured-in__label {
+    font-weight: 500;
+    margin-block-end: var(--margin-sm, 12px);
+  }
+
+  .lookbook-featured-in > .lookbook__wrapper + .lookbook-featured-in__label {
+    margin-block-start: var(--margin-xl, 32px);
+  }
+{% endstylesheet %}
+
+{% schema %}
+{
+  "name": "Featured in Lookbook",
+  "tag": "section",
+  "class": "section-lookbook-featured-in",
+  "enabled_on": {
+    "templates": ["product"]
+  },
+  "settings": [
+    {
+      "type": "range",
+      "id": "padding-block-start",
+      "label": "Top padding",
+      "min": 0,
+      "max": 100,
+      "step": 1,
+      "unit": "px",
+      "default": 48
+    },
+    {
+      "type": "range",
+      "id": "padding-block-end",
+      "label": "Bottom padding",
+      "min": 0,
+      "max": 100,
+      "step": 1,
+      "unit": "px",
+      "default": 48
+    }
+  ],
+  "presets": [
+    {
+      "name": "Featured in Lookbook"
+    }
+  ]
+}
+{% endschema %}
