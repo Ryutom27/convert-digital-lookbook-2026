@@ -1,0 +1,223 @@
+{%- doc -%}
+  Renders a Lookbook: a cover image/title/description from a `lookbook` metaobject,
+  alongside a shoppable row of the products featured in it. Product data (price, image,
+  variants) is deliberately not resolved here — only handles are read from the metaobject.
+  The `lookbook-component` custom element fetches live product data from the Storefront
+  API client-side, so market-based pricing (AUD/JPY) resolves correctly per shopper.
+
+  @see assets/lookbook.js
+{%- enddoc -%}
+
+{% liquid
+  assign lookbook = section.settings.lookbook
+  assign products = lookbook.products.value
+  assign product_handles = products | map: 'handle' | join: ','
+%}
+
+<div
+  class="section section--page-width lookbook spacing-style"
+  style="{% render 'spacing-style', settings: section.settings %}"
+>
+  {% if lookbook == blank %}
+    <div class="lookbook__onboarding placeholder-content">
+      {{ 'placeholders.lookbook' | t | default: 'Select a lookbook to display' }}
+    </div>
+  {% else %}
+    <lookbook-component
+      class="lookbook__wrapper"
+      data-product-handles="{{ product_handles }}"
+      data-country="{{ localization.country.iso_code }}"
+      data-money-format="{{ shop.money_format | escape }}"
+      data-section-id="{{ section.id }}"
+    >
+      <div class="lookbook__grid">
+        <div class="lookbook__media">
+          {% if lookbook.image.value != blank %}
+            {% render 'image', image: lookbook.image.value, class: 'lookbook__image' %}
+          {% else %}
+            {{ 'lifestyle-1' | placeholder_svg_tag: 'lookbook__image lookbook__image--placeholder' }}
+          {% endif %}
+        </div>
+
+        <div class="lookbook__content">
+          {% if lookbook.title.value != blank %}
+            <h2 class="lookbook__title h3">{{ lookbook.title.value }}</h2>
+          {% endif %}
+
+          {% if lookbook.description.value != blank %}
+            <div class="lookbook__description">{{ lookbook.description.value | newline_to_br }}</div>
+          {% endif %}
+
+          {% if products.size > 0 %}
+            <p class="lookbook__shop-label">Shop the look</p>
+            <ul class="lookbook__thumbs" ref="thumbList" role="list">
+              {% for product in products %}
+                <li
+                  class="lookbook__thumb lookbook__thumb--loading"
+                  data-handle="{{ product.handle }}"
+                  aria-hidden="true"
+                ></li>
+              {% endfor %}
+            </ul>
+          {% endif %}
+        </div>
+      </div>
+
+      <dialog
+        class="lookbook__dialog"
+        ref="dialog"
+        aria-label="{{ 'accessibility.product_details' | t }}"
+      ></dialog>
+    </lookbook-component>
+  {% endif %}
+</div>
+
+{% stylesheet %}
+  .lookbook__wrapper {
+    display: block;
+  }
+
+  .lookbook__grid {
+    display: grid;
+    gap: var(--margin-lg, 24px);
+    grid-template-areas: 'media' 'content';
+
+    @media screen and (min-width: 750px) {
+      grid-template-columns: calc((100% / 12) * 7) calc((100% / 12) * 5);
+      grid-template-areas: 'media content';
+      align-items: start;
+    }
+  }
+
+  .lookbook__media {
+    grid-area: media;
+  }
+
+  .lookbook__image,
+  .lookbook__image--placeholder {
+    width: 100%;
+    height: auto;
+    display: block;
+  }
+
+  .lookbook__content {
+    grid-area: content;
+    display: flex;
+    flex-direction: column;
+    gap: var(--margin-sm, 12px);
+  }
+
+  .lookbook__shop-label {
+    font-weight: 500;
+    margin-block-start: var(--margin-sm, 12px);
+  }
+
+  .lookbook__thumbs {
+    display: flex;
+    gap: var(--margin-xs, 8px);
+    overflow-x: auto;
+    padding: 0;
+    margin: 0;
+    list-style: none;
+    scroll-snap-type: x proximity;
+
+    /* Hide scrollbar, matches theme convention (see localization-form.liquid) */
+    scrollbar-width: none;
+
+    &::-webkit-scrollbar {
+      display: none;
+    }
+  }
+
+  .lookbook__thumb {
+    flex: 0 0 auto;
+    width: 92px;
+    aspect-ratio: 3 / 4;
+    scroll-snap-align: start;
+    border-radius: var(--style-border-radius-buttons, 4px);
+    cursor: pointer;
+    background: none;
+    padding: 0;
+    border: 0;
+    overflow: hidden;
+  }
+
+  .lookbook__thumb--loading {
+    background-color: rgb(var(--color-foreground-rgb) / var(--opacity-8, 0.08));
+    animation: lookbook-pulse 1.4s ease-in-out infinite;
+  }
+
+  .lookbook__thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
+  @keyframes lookbook-pulse {
+    0%,
+    100% {
+      opacity: 1;
+    }
+
+    50% {
+      opacity: 0.5;
+    }
+  }
+
+  .lookbook__dialog {
+    padding: 0;
+    border: 0;
+    border-radius: var(--style-border-radius-buttons, 4px);
+    max-width: 320px;
+  }
+
+  .lookbook__dialog::backdrop {
+    background: rgb(0 0 0 / 0.3);
+  }
+{% endstylesheet %}
+
+{% schema %}
+{
+  "name": "Lookbook",
+  "tag": "section",
+  "class": "section-lookbook",
+  "settings": [
+    {
+      "type": "metaobject",
+      "metaobject_type": "lookbook",
+      "id": "lookbook",
+      "label": "Lookbook"
+    },
+    {
+      "type": "header",
+      "content": "Padding"
+    },
+    {
+      "type": "range",
+      "id": "padding-block-start",
+      "label": "Top padding",
+      "min": 0,
+      "max": 100,
+      "step": 1,
+      "unit": "px",
+      "default": 48
+    },
+    {
+      "type": "range",
+      "id": "padding-block-end",
+      "label": "Bottom padding",
+      "min": 0,
+      "max": 100,
+      "step": 1,
+      "unit": "px",
+      "default": 48
+    }
+  ],
+  "presets": [
+    {
+      "name": "Lookbook"
+    }
+  ]
+}
+{% endschema %}
