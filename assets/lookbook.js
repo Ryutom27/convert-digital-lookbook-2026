@@ -75,6 +75,7 @@ function buildQuery(handles) {
  * @typedef {object} Refs
  * @property {HTMLElement} thumbList
  * @property {HTMLDialogElement} dialog
+ * @property {HTMLTemplateElement} [thumbIconTemplate]
  * @extends Component<Refs>
  */
 export class LookbookComponent extends Component {
@@ -182,6 +183,12 @@ export class LookbookComponent extends Component {
       img.alt = image.altText || product.title;
       img.loading = 'lazy';
       button.append(img);
+    }
+
+    // Signals the thumbnail is clickable/shoppable, not just another photo —
+    // matches the theme's existing icon-badge convention.
+    if (this.refs.thumbIconTemplate instanceof HTMLTemplateElement) {
+      button.append(this.refs.thumbIconTemplate.content.cloneNode(true));
     }
 
     placeholder.replaceChildren(button);

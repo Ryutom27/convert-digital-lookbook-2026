@@ -44,7 +44,7 @@
       {% endif %}
     </div>
 
-    <div class="lookbook__content">
+    <div class="lookbook__content sticky-content--desktop">
       {% if lookbook.title.value != blank %}
         <h2 class="lookbook__title h3">{{ lookbook.title.value }}</h2>
       {% endif %}
@@ -54,7 +54,7 @@
       {% endif %}
 
       {% if products.size > 0 %}
-        <p class="lookbook__shop-label">Shop the look</p>
+        <p class="lookbook__shop-label">Shop this look</p>
         <ul class="lookbook__thumbs" ref="thumbList" role="list">
           {% for product in products %}
             <li
@@ -67,6 +67,12 @@
       {% endif %}
     </div>
   </div>
+
+  <template ref="thumbIconTemplate">
+    <span class="lookbook__thumb-icon" aria-hidden="true">
+      {{ 'icon-plus.svg' | inline_asset_content }}
+    </span>
+  </template>
 
   <dialog
     class="lookbook__dialog"
@@ -110,8 +116,16 @@
     gap: var(--margin-sm, 12px);
   }
 
+  .lookbook__description {
+    color: var(--color-foreground-subdued);
+  }
+
   .lookbook__shop-label {
+    font-size: var(--font-size-sm);
     font-weight: 500;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--color-foreground-subdued);
     margin-block-start: var(--margin-sm, 12px);
   }
 
@@ -133,6 +147,7 @@
   }
 
   .lookbook__thumb {
+    position: relative;
     flex: 0 0 auto;
     width: 92px;
     aspect-ratio: 3 / 4;
@@ -163,6 +178,26 @@
     height: 100%;
     object-fit: cover;
     display: block;
+  }
+
+  .lookbook__thumb-icon {
+    position: absolute;
+    bottom: 6px;
+    right: 6px;
+    width: 22px;
+    height: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: rgb(255 255 255 / 0.9);
+    color: #000;
+    pointer-events: none;
+  }
+
+  .lookbook__thumb-icon svg {
+    width: 10px;
+    height: 10px;
   }
 
   @keyframes lookbook-pulse {
