@@ -1,4 +1,4 @@
-{%- doc -%}
+{%- comment -%}
   Renders a Lookbook: a cover image/title/description from a `lookbook` metaobject,
   alongside a shoppable row of the products featured in it. Product data (price, image,
   variants) is deliberately not resolved here — only handles are read from the metaobject.
@@ -6,7 +6,7 @@
   API client-side, so market-based pricing (AUD/JPY) resolves correctly per shopper.
 
   @see assets/lookbook.js
-{%- enddoc -%}
+{%- endcomment -%}
 
 {% liquid
   assign lookbook = section.settings.lookbook
@@ -20,7 +20,7 @@
 >
   {% if lookbook == blank %}
     <div class="lookbook__onboarding placeholder-content">
-      {{ 'placeholders.lookbook' | t | default: 'Select a lookbook to display' }}
+      Select a lookbook to display
     </div>
   {% else %}
     <lookbook-component
