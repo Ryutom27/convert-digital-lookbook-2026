@@ -43,6 +43,17 @@ const PRODUCT_FIELDS = `
 `;
 
 /**
+ * Storefront API IDs are GraphQL global IDs (e.g. "gid://shopify/ProductVariant/123"),
+ * but the Ajax Cart API (/cart/add.js) expects the plain numeric ID — the same
+ * format Liquid's `variant.id` outputs everywhere else in this theme.
+ * @param {string} gid
+ * @returns {string}
+ */
+function toNumericId(gid) {
+  return gid.split('/').pop() ?? gid;
+}
+
+/**
  * Builds a single batched GraphQL query fetching all given handles by alias,
  * so a lookbook with N products costs one Storefront API request, not N.
  * @param {string[]} handles
@@ -245,6 +256,10 @@ export class LookbookComponent extends Component {
     const availableVariants = product.variants.nodes.filter(
       (/** @type {any} */ variant) => variant.availableForSale
     );
+    // Kept as the Storefront API's GraphQL global ID (not the numeric ID) —
+    // CartLinesUpdateEvent's merchandiseId field expects that format. Only
+    // converted to the numeric ID right before the /cart/add.js request, the
+    // one place that needs it.
     this.#selectedVariantId = availableVariants[0]?.id ?? null;
 
     if (availableVariants.length > 1) {
@@ -273,7 +288,22 @@ export class LookbookComponent extends Component {
     addToCartButton.disabled = availableVariants.length === 0;
     content.append(addToCartButton);
 
+    const errorEl = document.createElement('p');
+    errorEl.className = 'lookbook__dialog-error';
+    errorEl.hidden = true;
+    content.append(errorEl);
+
     dialog.append(content);
+  }
+
+  /**
+   * @param {string} message
+   */
+  #showError(message) {
+    const errorEl = this.refs.dialog.querySelector('.lookbook__dialog-error');
+    if (!(errorEl instanceof HTMLElement)) return;
+    errorEl.textContent = message;
+    errorEl.hidden = false;
   }
 
   /**
@@ -321,16 +351,28 @@ export class LookbookComponent extends Component {
 
     try {
       const response = await fetch(Theme.routes.cart_add_url, {
-        ...fetchConfig('javascript', {
-          body: JSON.stringify({ items: [{ id: variantId, quantity: 1 }], sections: sectionIds.join(',') }),
+        ...fetchConfig('json', {
+          body: JSON.stringify({
+            items: [{ id: toNumericId(variantId), quantity: 1 }],
+            sections: sectionIds.join(','),
+          }),
         }),
       });
       const result = await response.json();
 
       if (result.status) {
-        const error = new Error(result.message || 'Add to cart failed');
-        this.dispatchEvent(new CartErrorEvent({ error: error.message, code: 'INVALID' }));
-        deferredEventPromise.reject(error);
+        // A handled cart API error (e.g. out of stock) — still resolve the
+        // promise with a refetched cart, matching product-form.js's contract.
+        // Only genuine unexpected exceptions (below) reject it.
+        const message = result.message || 'Add to cart failed';
+        this.#showError(message);
+        this.dispatchEvent(new CartErrorEvent({ error: message, code: 'INVALID' }));
+
+        const cart = await this.#refreshCart();
+        deferredEventPromise.resolve({
+          cart: CartLinesUpdateEvent.createCartFromAjaxResponse(cart),
+          detail: { didError: true, items: cart.items, source: 'lookbook-component' },
+        });
         return;
       }
 
@@ -349,6 +391,7 @@ export class LookbookComponent extends Component {
       this.refs.dialog.close();
     } catch (error) {
       console.error('[lookbook] Add to cart failed', error);
+      this.#showError(/** @type {Error} */ (error).message || 'Something went wrong. Please try again.');
       this.dispatchEvent(
         new CartErrorEvent({ error: /** @type {Error} */ (error).message, code: 'SERVICE_UNAVAILABLE' })
       );
