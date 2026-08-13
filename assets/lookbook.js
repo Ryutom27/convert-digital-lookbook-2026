@@ -78,6 +78,13 @@ export class LookbookComponent extends Component {
   connectedCallback() {
     super.connectedCallback();
     this.#fetchProducts();
+
+    // Native <dialog> doesn't close on backdrop click by default — a click
+    // on the backdrop bubbles with the dialog itself as the target (nothing
+    // inside it does), so this check distinguishes "outside" from "inside".
+    this.refs.dialog.addEventListener('click', (event) => {
+      if (event.target === this.refs.dialog) this.refs.dialog.close();
+    });
   }
 
   async #fetchProducts() {
@@ -181,12 +188,24 @@ export class LookbookComponent extends Component {
     this.refs.dialog.showModal();
   };
 
+  closeDialog = () => {
+    this.refs.dialog.close();
+  };
+
   /**
    * @param {any} product
    */
   #populateDialog(product) {
     const dialog = this.refs.dialog;
     dialog.replaceChildren();
+
+    const closeButton = document.createElement('button');
+    closeButton.type = 'button';
+    closeButton.className = 'lookbook__dialog-close';
+    closeButton.setAttribute('aria-label', 'Close');
+    closeButton.setAttribute('on:click', '/closeDialog');
+    closeButton.textContent = '×';
+    dialog.append(closeButton);
 
     const moneyFormat = this.dataset.moneyFormat ?? '{{ amount }}';
     const price = product.priceRange.minVariantPrice;
