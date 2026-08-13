@@ -86,20 +86,34 @@
     display: block;
   }
 
-  .lookbook__grid {
-    display: grid;
-    gap: var(--margin-lg, 24px);
-    grid-template-areas: 'media' 'content';
+  /* Without this, sticky-content--desktop's top offset defaults to 0 (see
+     assets/base.css) and sticks right under/behind the header instead of
+     below it — same fix product-information-content.liquid applies to the
+     product page's sticky buy-box. */
+  body:has(#header-group #header-component[data-sticky-state='active'])
+    .lookbook__content.sticky-content--desktop {
+    --sticky-header-offset: var(--header-height);
+  }
 
+  .lookbook__grid {
+    display: flex;
+    flex-direction: column;
+    gap: var(--margin-lg, 24px);
+
+    /* Flex, not grid: position: sticky on a grid item is inconsistently
+       supported across browsers (notably Safari); it's much more reliable
+       as a flex item, which is why the layout uses flex here instead of
+       the grid technique media-with-content.liquid uses elsewhere. */
     @media screen and (min-width: 750px) {
-      grid-template-columns: calc((100% / 12) * 7) calc((100% / 12) * 5);
-      grid-template-areas: 'media content';
-      align-items: start;
+      flex-direction: row;
+      align-items: flex-start;
     }
   }
 
   .lookbook__media {
-    grid-area: media;
+    @media screen and (min-width: 750px) {
+      flex: 0 0 calc((100% / 12) * 7);
+    }
   }
 
   .lookbook__image,
@@ -110,10 +124,13 @@
   }
 
   .lookbook__content {
-    grid-area: content;
     display: flex;
     flex-direction: column;
     gap: var(--margin-sm, 12px);
+
+    @media screen and (min-width: 750px) {
+      flex: 0 0 calc((100% / 12) * 5);
+    }
   }
 
   .lookbook__description {
