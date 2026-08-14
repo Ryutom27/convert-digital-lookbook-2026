@@ -13,6 +13,8 @@ const PRODUCT_FIELDS = `
   id
   title
   handle
+  description
+  onlineStoreUrl
   featuredImage {
     url
     altText
@@ -51,6 +53,20 @@ const PRODUCT_FIELDS = `
  */
 function toNumericId(gid) {
   return gid.split('/').pop() ?? gid;
+}
+
+const DESCRIPTION_EXCERPT_LENGTH = 120;
+
+/**
+ * Truncates plain text to a max length on a word boundary, for a short
+ * dialog excerpt rather than a merchant's full (possibly long) description.
+ * @param {string} text
+ * @param {number} maxLength
+ * @returns {string}
+ */
+function excerpt(text, maxLength) {
+  if (text.length <= maxLength) return text;
+  return `${text.slice(0, maxLength).trimEnd()}…`;
 }
 
 /**
@@ -266,6 +282,21 @@ export class LookbookComponent extends Component {
     }
 
     content.append(priceEl);
+
+    if (product.description) {
+      const descriptionEl = document.createElement('p');
+      descriptionEl.className = 'lookbook__dialog-description';
+      descriptionEl.textContent = excerpt(product.description, DESCRIPTION_EXCERPT_LENGTH);
+      content.append(descriptionEl);
+    }
+
+    const detailsLink = document.createElement('a');
+    detailsLink.className = 'lookbook__dialog-link';
+    detailsLink.href = product.onlineStoreUrl || `/products/${product.handle}`;
+    detailsLink.target = '_blank';
+    detailsLink.rel = 'noopener';
+    detailsLink.textContent = 'View full details';
+    content.append(detailsLink);
 
     const availableVariants = product.variants.nodes.filter(
       (/** @type {any} */ variant) => variant.availableForSale
