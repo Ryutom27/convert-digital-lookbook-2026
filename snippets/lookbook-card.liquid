@@ -74,6 +74,12 @@
     </span>
   </template>
 
+  <template ref="selectCaretTemplate">
+    <span class="lookbook__dialog-variant-select-caret" aria-hidden="true">
+      {{ 'icon-caret.svg' | inline_asset_content }}
+    </span>
+  </template>
+
   <dialog
     class="lookbook__dialog"
     ref="dialog"
@@ -299,8 +305,16 @@
     padding: var(--margin-md, 16px);
   }
 
+  /* p/a/select all carry their own default browser margin, which stacks on
+     top of the gap above and doubles up the spacing between them. Reset it
+     so gap is the only thing controlling spacing. */
+  .lookbook__dialog-content > * {
+    margin: 0;
+  }
+
   .lookbook__dialog-title {
-    font-weight: 500;
+    font-size: var(--font-size--lg);
+    font-weight: 600;
   }
 
   .lookbook__dialog-compare-at {
@@ -309,20 +323,64 @@
 
   .lookbook__dialog-description {
     color: var(--color-foreground-subdued);
-    font-size: var(--font-size-sm);
+    font-size: var(--font-size--sm);
   }
 
   .lookbook__dialog-link {
-    font-size: var(--font-size-sm);
+    font-size: var(--font-size--sm);
     text-decoration: underline;
   }
 
+  .lookbook__dialog-variant-select-wrapper {
+    position: relative;
+  }
+
+  /* Matching padding/line-height tokens got the select and the button close,
+     but <select> can carry its own intrinsic sizing in some browsers that
+     doesn't fully respond to that. An explicit shared min-height guarantees
+     they're actually the same height, not just close — and 44px meets the
+     same touch-target guideline as the dialog's close button. */
+  .lookbook__dialog-variant-select,
+  .lookbook__dialog-add-to-cart {
+    min-height: 44px;
+  }
+
   .lookbook__dialog-variant-select {
+    /* Was only ever given a width — everything else was raw browser-default
+       <select> styling sitting right above a fully custom-styled .button,
+       so the two read as two unrelated design systems stacked together.
+       Reusing the button's own tokens (not copied values) makes them read
+       as a deliberate pair, and keeps this in sync if those tokens change. */
+    appearance: none;
     width: 100%;
+    padding-block: var(--button-padding-block);
+    padding-inline: var(--button-padding-inline);
+    padding-inline-end: calc(var(--button-padding-inline) + var(--icon-size-xs, 14px));
+    border-radius: var(--style-border-radius-buttons-primary);
+    border: var(--button-border-width, 1px) solid var(--color-border);
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-paragraph--family);
+    font-style: var(--font-paragraph--style);
+    font-weight: var(--font-paragraph--weight);
+    font-size: var(--font-paragraph--size);
+    line-height: var(--font-paragraph--line-height);
+  }
+
+  .lookbook__dialog-variant-select-caret {
+    width: var(--icon-size-xs, 14px);
+    height: var(--icon-size-xs, 14px);
+    position: absolute;
+    right: var(--button-padding-inline);
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    align-items: center;
+    pointer-events: none;
   }
 
   .lookbook__dialog-error {
     color: var(--color-error, #d02e2e);
-    font-size: var(--font-size-sm);
+    font-size: var(--font-size--sm);
   }
 {% endstylesheet %}

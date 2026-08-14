@@ -111,6 +111,7 @@ function buildQuery(handles) {
  * @property {HTMLElement} thumbList
  * @property {HTMLDialogElement} dialog
  * @property {HTMLTemplateElement} [thumbIconTemplate]
+ * @property {HTMLTemplateElement} [selectCaretTemplate]
  * @extends Component<Refs>
  */
 export class LookbookComponent extends Component {
@@ -327,6 +328,9 @@ export class LookbookComponent extends Component {
     this.#selectedVariantId = availableVariants[0]?.id ?? null;
 
     if (availableVariants.length > 1) {
+      const selectWrapper = document.createElement('div');
+      selectWrapper.className = 'lookbook__dialog-variant-select-wrapper';
+
       const select = document.createElement('select');
       select.className = 'lookbook__dialog-variant-select';
       select.setAttribute('on:change', '/handleVariantChange');
@@ -341,12 +345,21 @@ export class LookbookComponent extends Component {
         select.append(option);
       }
 
-      content.append(select);
+      selectWrapper.append(select);
+
+      // Stripping the select's native appearance (below) also removes its
+      // native dropdown arrow, so a custom one takes its place — same
+      // pattern the theme's own localization-form select already uses.
+      if (this.refs.selectCaretTemplate instanceof HTMLTemplateElement) {
+        selectWrapper.append(this.refs.selectCaretTemplate.content.cloneNode(true));
+      }
+
+      content.append(selectWrapper);
     }
 
     const addToCartButton = document.createElement('button');
     addToCartButton.type = 'button';
-    addToCartButton.className = 'button';
+    addToCartButton.className = 'button lookbook__dialog-add-to-cart';
     addToCartButton.setAttribute('on:click', '/addToCart');
     addToCartButton.textContent = availableVariants.length > 0 ? 'Add to cart' : 'Sold out';
     addToCartButton.disabled = availableVariants.length === 0;
