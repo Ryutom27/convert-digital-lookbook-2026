@@ -13,7 +13,7 @@ const PRODUCT_FIELDS = `
   id
   title
   handle
-  description
+  descriptionHtml
   onlineStoreUrl
   featuredImage {
     url
@@ -67,6 +67,25 @@ const DESCRIPTION_EXCERPT_LENGTH = 120;
 function excerpt(text, maxLength) {
   if (text.length <= maxLength) return text;
   return `${text.slice(0, maxLength).trimEnd()}…`;
+}
+
+/**
+ * Converts a product's descriptionHtml into plain text. Block-level tags
+ * become a space before stripping, so merchant content shaped like
+ * "<p><strong>Name</strong></p><p>Body copy</p>" — a common rich-text
+ * pattern — doesn't collapse into "NameBody copy" once tags are removed.
+ * @param {string} html
+ * @returns {string}
+ */
+function htmlToText(html) {
+  const withSpaces = html.replace(/<\/(p|div|h[1-6]|li|tr)>|<br\s*\/?>/gi, ' ').replace(/<[^>]+>/g, '');
+
+  // Decode entities (&amp;, &#39;, etc.) without executing any markup — a
+  // <textarea>'s value never parses its content as HTML.
+  const textarea = document.createElement('textarea');
+  textarea.innerHTML = withSpaces;
+
+  return textarea.value.replace(/\s+/g, ' ').trim();
 }
 
 /**
@@ -283,10 +302,10 @@ export class LookbookComponent extends Component {
 
     content.append(priceEl);
 
-    if (product.description) {
+    if (product.descriptionHtml) {
       const descriptionEl = document.createElement('p');
       descriptionEl.className = 'lookbook__dialog-description';
-      descriptionEl.textContent = excerpt(product.description, DESCRIPTION_EXCERPT_LENGTH);
+      descriptionEl.textContent = excerpt(htmlToText(product.descriptionHtml), DESCRIPTION_EXCERPT_LENGTH);
       content.append(descriptionEl);
     }
 
