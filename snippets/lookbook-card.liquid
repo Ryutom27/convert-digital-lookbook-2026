@@ -133,23 +133,33 @@
     }
   }
 
+  /* Same fix as .lookbook__dialog-content: h2/div/p all carry their own
+     default browser margin, which stacks on top of the gap above. */
+  .lookbook__content > * {
+    margin: 0;
+  }
+
   .lookbook__description {
     color: var(--color-foreground-subdued);
   }
 
   .lookbook__shop-label {
-    font-size: var(--font-size-sm);
+    font-size: var(--font-size--sm);
     font-weight: 500;
     letter-spacing: 0.05em;
     text-transform: uppercase;
     color: var(--color-foreground-subdued);
-    margin-block-start: var(--margin-sm, 12px);
   }
 
   .lookbook__thumbs {
     display: flex;
     gap: var(--margin-xs, 8px);
     overflow-x: auto;
+
+    /* A hard image edge sitting right after the base gap reads as tighter
+       than the same gap between two lines of text, which have their own
+       optical breathing room from line-height. This makes up the difference. */
+    margin-block-start: var(--margin-3xs, 4px);
     padding: 0;
     margin: 0;
     list-style: none;
@@ -190,7 +200,7 @@
   .lookbook__thumb-price {
     display: block;
     margin-block-start: var(--margin-3xs, 4px);
-    font-size: var(--font-size-sm);
+    font-size: var(--font-size--sm);
     color: var(--color-foreground-subdued);
   }
 
@@ -245,22 +255,35 @@
   }
 
   .lookbook__dialog-close {
+    /* 44px hit area meets Apple's minimum recommended touch target size,
+       even though the visible circle can look smaller. */
     position: absolute;
-    top: var(--margin-xs, 8px);
-    right: var(--margin-xs, 8px);
-    width: 28px;
-    height: 28px;
+    top: var(--margin-3xs, 4px);
+    right: var(--margin-3xs, 4px);
+    width: 44px;
+    height: 44px;
     display: flex;
     align-items: center;
     justify-content: center;
-    border-radius: 50%;
     border: 0;
-    background: rgb(255 255 255 / 0.9);
+    background: none;
     color: #000;
     font-size: 20px;
     line-height: 1;
     cursor: pointer;
     z-index: 1;
+  }
+
+  .lookbook__dialog-close::before {
+    content: '';
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: rgb(255 255 255 / 0.9);
+    position: absolute;
+    inset: 0;
+    margin: auto;
+    z-index: -1;
   }
 
   .lookbook__dialog-image {
