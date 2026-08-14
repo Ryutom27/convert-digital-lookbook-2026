@@ -31,7 +31,7 @@ const PRODUCT_FIELDS = `
       currencyCode
     }
   }
-  variants(first: 25) {
+  variants(first: 100) {
     nodes {
       id
       availableForSale
