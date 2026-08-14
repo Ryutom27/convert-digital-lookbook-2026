@@ -36,6 +36,10 @@ const PRODUCT_FIELDS = `
       id
       availableForSale
       title
+      image {
+        url
+        altText
+      }
       selectedOptions {
         name
         value
@@ -122,6 +126,9 @@ export class LookbookComponent extends Component {
 
   /** @type {string | null} */
   #selectedVariantId = null;
+
+  /** @type {any} */
+  #currentProduct = null;
 
   connectedCallback() {
     super.connectedCallback();
@@ -257,6 +264,8 @@ export class LookbookComponent extends Component {
    * @param {any} product
    */
   #populateDialog(product) {
+    this.#currentProduct = product;
+
     const dialog = this.refs.dialog;
     dialog.replaceChildren();
 
@@ -397,7 +406,21 @@ export class LookbookComponent extends Component {
    */
   handleVariantChange = (event) => {
     if (!(event.target instanceof HTMLSelectElement)) return;
-    this.#selectedVariantId = event.target.value;
+    const select = event.target;
+    this.#selectedVariantId = select.value;
+
+    const product = this.#currentProduct;
+    if (!product) return;
+
+    const variant = product.variants.nodes.find((/** @type {any} */ node) => node.id === select.value);
+    const image = variant?.image ?? product.featuredImage;
+    if (!image) return;
+
+    const img = this.refs.dialog.querySelector('.lookbook__dialog-image');
+    if (img instanceof HTMLImageElement) {
+      img.src = image.url;
+      img.alt = image.altText || product.title;
+    }
   };
 
   /**
