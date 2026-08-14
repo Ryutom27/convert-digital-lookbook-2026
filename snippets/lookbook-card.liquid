@@ -164,30 +164,34 @@
   }
 
   .lookbook__thumb {
-    position: relative;
     flex: 0 0 auto;
     width: 92px;
-    aspect-ratio: 3 / 4;
     scroll-snap-align: start;
-    border-radius: var(--style-border-radius-buttons, 4px);
-    cursor: pointer;
-    background: none;
-    padding: 0;
-    border: 0;
-    overflow: hidden;
   }
 
   .lookbook__thumb--loading {
+    aspect-ratio: 3 / 4;
+    border-radius: var(--style-border-radius-buttons, 4px);
     background-color: rgb(var(--color-foreground-rgb) / var(--opacity-8, 0.08));
     animation: lookbook-pulse 1.4s ease-in-out infinite;
   }
 
   .lookbook__thumb-button {
     all: unset;
+    position: relative;
     display: block;
     width: 100%;
-    height: 100%;
+    aspect-ratio: 3 / 4;
+    border-radius: var(--style-border-radius-buttons, 4px);
+    overflow: hidden;
     cursor: pointer;
+  }
+
+  .lookbook__thumb-price {
+    display: block;
+    margin-block-start: var(--margin-3xs, 4px);
+    font-size: var(--font-size-sm);
+    color: var(--color-foreground-subdued);
   }
 
   .lookbook__thumb img {

@@ -191,7 +191,14 @@ export class LookbookComponent extends Component {
       button.append(this.refs.thumbIconTemplate.content.cloneNode(true));
     }
 
-    placeholder.replaceChildren(button);
+    const priceEl = document.createElement('span');
+    priceEl.className = 'lookbook__thumb-price';
+    priceEl.textContent = this.#formatPrice(
+      product.priceRange.minVariantPrice,
+      this.dataset.moneyFormat ?? '{{ amount }}'
+    );
+
+    placeholder.replaceChildren(button, priceEl);
   }
 
   /**
