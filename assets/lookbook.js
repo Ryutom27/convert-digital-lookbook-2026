@@ -327,16 +327,15 @@ export class LookbookComponent extends Component {
     detailsLink.textContent = 'View full details';
     content.append(detailsLink);
 
-    const availableVariants = product.variants.nodes.filter(
-      (/** @type {any} */ variant) => variant.availableForSale
-    );
+    const allVariants = product.variants.nodes;
+    const availableVariants = allVariants.filter((/** @type {any} */ variant) => variant.availableForSale);
     // Kept as the Storefront API's GraphQL global ID (not the numeric ID) —
     // CartLinesUpdateEvent's merchandiseId field expects that format. Only
     // converted to the numeric ID right before the /cart/add.js request, the
     // one place that needs it.
     this.#selectedVariantId = availableVariants[0]?.id ?? null;
 
-    if (availableVariants.length > 1) {
+    if (allVariants.length > 1) {
       const selectWrapper = document.createElement('div');
       selectWrapper.className = 'lookbook__dialog-variant-select-wrapper';
 
@@ -345,12 +344,18 @@ export class LookbookComponent extends Component {
       select.setAttribute('on:change', '/handleVariantChange');
       select.setAttribute('aria-label', 'Options');
 
-      for (const variant of availableVariants) {
+      // Sold-out variants still render — as a disabled option, so shoppers
+      // can see the full range rather than have it silently disappear —
+      // they just can't be selected.
+      for (const variant of allVariants) {
         const option = document.createElement('option');
         option.value = variant.id;
-        option.textContent = variant.selectedOptions
+        const label = variant.selectedOptions
           .map((/** @type {any} */ selectedOption) => selectedOption.value)
           .join(' / ');
+        option.textContent = variant.availableForSale ? label : `${label} - Sold out`;
+        option.disabled = !variant.availableForSale;
+        option.selected = variant.id === this.#selectedVariantId;
         select.append(option);
       }
 
