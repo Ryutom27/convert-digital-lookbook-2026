@@ -7,7 +7,7 @@ import { CartLinesUpdateEvent, CartErrorEvent } from '@shopify/events';
  * Storefront API version this section's queries target. Update alongside the
  * theme's other API-version references when bumping Shopify API versions.
  */
-const API_VERSION = '2025-01';
+const API_VERSION = '2026-04';
 
 const PRODUCT_FIELDS = `
   id
