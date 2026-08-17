@@ -53,11 +53,13 @@ assign product_handles = lookbook.products.value | map: 'handle' | join: ','
 `assets/lookbook.js` reads the handles off a `data-product-handles` attribute and fires **one** batched GraphQL request per lookbook — not one request per product:
 
 ```graphql
-query LookbookProducts($country: CountryCode!) @inContext(country: $country) {
+query LookbookProducts($country: CountryCode) @inContext(country: $country) {
   product0: product(handle: "classic-cap") { ... }
   product1: product(handle: "denim-jacket") { ... }
 }
 ```
+
+`$country` is deliberately nullable, not `CountryCode!` — if `localization.country.iso_code` is ever blank (an edge case in market resolution, or a theme-editor preview context), a non-null variable would fail GraphQL variable coercion for the *entire* batched request. Nullable, it just falls back to the shop's default market context instead of taking down every product in the lookbook over one missing value.
 
 Each product gets its own aliased `product(handle: ...)` lookup in the same request. This avoids N+1 requests, and using exact-handle lookups (rather than a `query:` search filter) means a deleted or unpublished handle just comes back `null` for that one alias — the rest of the response is unaffected, and that product's placeholder is quietly removed rather than showing broken content.
 
@@ -76,7 +78,9 @@ Two things had to line up for this to work correctly, and they're handled separa
 
 **Compare-at pricing**: both `priceRange` and `compareAtPriceRange` are requested per product, per market, in the same query — so a product on sale in JPY but not AUD (or vice versa) resolves correctly and independently in each market, not just the base price.
 
-**Currency formatting**: JPY has no decimal places; a naive formatter would render `¥1500.00` instead of `¥1,500`. `assets/lookbook.js` reuses the theme's existing `money-formatting.js` module (`formatMoney`/`convertMoneyToMinorUnits`), the same code the rest of the theme already relies on for this, rather than re-implementing currency formatting.
+**Currency formatting**: JPY has no decimal places; a naive formatter would render `¥1500.00` instead of `¥1,500`. `assets/lookbook.js` reuses the theme's existing `money-formatting.js` module (`formatMoney`) for the actual display formatting, rather than re-implementing it.
+
+Converting the Storefront API's response into that formatter's expected input needed its own fix, though: `money-formatting.js` also exports `convertMoneyToMinorUnits`, a *fuzzy* parser built for human-typed input (a price filter field) that has to guess whether a trailing digit group is a decimal or a thousands separator. For zero-decimal currencies that guess is always "thousands" — so JPY's `MoneyV2.amount` string (e.g. `"12000.0"`) got misread as `120000`, a 10x price inflation caught during testing. Since the API's amount is an unambiguous plain-decimal string, not human input, `#formatPrice` parses it directly with `getCurrencyDivisor` instead of routing it through that heuristic.
 
 ## Making it shoppable
 
@@ -109,7 +113,7 @@ A product doesn't know which lookbook(s) it's featured in — only lookbooks kno
 ## Error handling & loading states
 
 - A deleted, unpublished, or mistyped product handle doesn't break the section — that one card's placeholder is removed, everything else renders normally.
-- If the Storefront API request itself fails (network error, bad token), it's logged to the console and the section fails quietly rather than throwing — the rest of the page is unaffected.
+- If the Storefront API request itself fails (missing token, network error), it's logged to the console and the skeleton placeholders are removed rather than left pulsing forever — the section fails quietly rather than throwing, and the rest of the page is unaffected.
 - While the batched request is in flight, product placeholders render as sized, pulsing skeleton boxes rather than an empty gap, so nothing flashes or jumps in once real content arrives.
 - Thumbnail and dialog images use the variant/product image's own `altText` from the Storefront API where one is set, falling back to the product title when it isn't — so alt text is never left blank. The lookbook's own `title` field renders as a visible heading (`<h2>`) rather than an ARIA label, so it's available to screen readers the same way any other section heading is.
 
