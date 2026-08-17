@@ -32,8 +32,9 @@
   class="lookbook__wrapper"
   data-product-handles="{{ product_handles }}"
   data-country="{{ localization.country.iso_code }}"
-  data-money-format="{{ shop.money_format | escape }}"
-  data-storefront-token="{{ settings.storefront_access_token }}"
+  data-money-format="{{ shop.money_format | strip_html }}"
+  data-storefront-token="{{ settings.storefront_access_token | escape }}"
+  data-label-close="{{ 'accessibility.close_dialog' | t | escape }}"
 >
   <div class="lookbook__grid">
     <div class="lookbook__media">

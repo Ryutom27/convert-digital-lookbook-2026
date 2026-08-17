@@ -70,7 +70,14 @@ const DESCRIPTION_EXCERPT_LENGTH = 120;
  */
 function excerpt(text, maxLength) {
   if (text.length <= maxLength) return text;
-  return `${text.slice(0, maxLength).trimEnd()}…`;
+
+  const sliced = text.slice(0, maxLength);
+  const lastSpace = sliced.lastIndexOf(' ');
+  // Only back off to the last space if there is one to back off to —
+  // a single word longer than maxLength still needs a hard cut.
+  const truncated = lastSpace > 0 ? sliced.slice(0, lastSpace) : sliced;
+
+  return `${truncated.trimEnd()}…`;
 }
 
 /**
@@ -95,6 +102,13 @@ function htmlToText(html) {
 /**
  * Builds a single batched GraphQL query fetching all given handles by alias,
  * so a lookbook with N products costs one Storefront API request, not N.
+ *
+ * No chunking/cap on handle count: a very large lookbook (dozens of
+ * products, each with variants(first: 100)) could approach the Storefront
+ * API's query cost limit in one request. Not addressed here — lookbooks in
+ * this build are small, curated "looks" (a handful of products), so
+ * request-chunking would be speculative complexity for a case the brief
+ * doesn't exercise. Worth revisiting if lookbooks grow much larger.
  * @param {string[]} handles
  * @returns {string}
  */
@@ -103,7 +117,10 @@ function buildQuery(handles) {
     .map((handle, index) => `product${index}: product(handle: ${JSON.stringify(handle)}) { ${PRODUCT_FIELDS} }`)
     .join('\n');
 
-  return `query LookbookProducts($country: CountryCode!) @inContext(country: $country) {\n${fields}\n}`;
+  // $country is nullable (not CountryCode!) so a blank/missing localization
+  // value degrades to the shop's default market context instead of failing
+  // GraphQL variable coercion for the whole batched request.
+  return `query LookbookProducts($country: CountryCode) @inContext(country: $country) {\n${fields}\n}`;
 }
 
 /**
@@ -112,14 +129,14 @@ function buildQuery(handles) {
  * dialog wired into the theme's shared cart-update event.
  *
  * @typedef {object} Refs
- * @property {HTMLElement} thumbList
+ * @property {HTMLElement} [thumbList] - Absent when the lookbook has no products (snippets/lookbook-card.liquid only renders it when products.size > 0)
  * @property {HTMLDialogElement} dialog
  * @property {HTMLTemplateElement} [thumbIconTemplate]
  * @property {HTMLTemplateElement} [selectCaretTemplate]
  * @extends Component<Refs>
  */
 export class LookbookComponent extends Component {
-  requiredRefs = ['thumbList', 'dialog'];
+  requiredRefs = ['dialog'];
 
   /** @type {Array<object | null>} */
   #products = [];
@@ -145,12 +162,16 @@ export class LookbookComponent extends Component {
   async #fetchProducts() {
     const handles = (this.dataset.productHandles ?? '').split(',').filter(Boolean);
     const token = this.dataset.storefrontToken;
-    const country = this.dataset.country;
+    // Falsy (missing/blank) becomes undefined rather than "" so
+    // JSON.stringify omits the variable entirely — an empty string would
+    // still fail enum coercion even with $country now nullable.
+    const country = this.dataset.country || undefined;
 
     if (handles.length === 0) return;
 
     if (!token) {
       console.error('[lookbook] Missing Storefront API access token — set it in Theme Settings > Storefront API.');
+      this.#clearPlaceholders();
       return;
     }
 
@@ -172,9 +193,11 @@ export class LookbookComponent extends Component {
 
       json = await response.json();
     } catch (error) {
-      // Storefront API being unreachable shouldn't break the page — the
-      // placeholders just stay as-is and the section quietly renders nothing.
+      // Storefront API being unreachable shouldn't break the page — remove
+      // the (now-permanently-stuck) skeleton placeholders rather than leave
+      // them pulsing forever.
       console.error('[lookbook] Storefront API request failed', error);
+      this.#clearPlaceholders();
       return;
     }
 
@@ -197,6 +220,17 @@ export class LookbookComponent extends Component {
 
       this.#renderThumb(placeholders[index], product, index);
     });
+  }
+
+  /**
+   * Removes all skeleton placeholders — used when the fetch never ran (no
+   * token) or failed outright, so there's no per-product data to render
+   * instead. Leaving them in place would pulse forever.
+   */
+  #clearPlaceholders() {
+    for (const placeholder of [...(this.refs.thumbList?.children ?? [])]) {
+      placeholder.remove();
+    }
   }
 
   /**
@@ -272,7 +306,7 @@ export class LookbookComponent extends Component {
     const closeButton = document.createElement('button');
     closeButton.type = 'button';
     closeButton.className = 'lookbook__dialog-close';
-    closeButton.setAttribute('aria-label', 'Close');
+    closeButton.setAttribute('aria-label', this.dataset.labelClose || 'Close');
     closeButton.setAttribute('on:click', '/closeDialog');
     closeButton.textContent = '×';
     dialog.append(closeButton);
@@ -456,7 +490,13 @@ export class LookbookComponent extends Component {
 
     const deferredEventPromise = CartLinesUpdateEvent.createPromise();
 
-    this.dispatchEvent(
+    // Dispatched from the dialog itself, not `this` (the lookbook-component)
+    // — cart-drawer.js detects an in-flight modal via
+    // `event.target.closest('dialog:modal')`, which only walks ancestors.
+    // The dialog is a descendant of lookbook-component, so dispatching from
+    // `this` would make that lookup fail and let the cart drawer open
+    // immediately instead of waiting for this dialog to close first.
+    this.refs.dialog.dispatchEvent(
       new CartLinesUpdateEvent({
         action: 'add',
         context: 'dialog',
