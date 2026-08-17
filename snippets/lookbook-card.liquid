@@ -249,7 +249,11 @@
   }
 
   .lookbook__dialog {
-    position: relative;
+    /* Native <dialog> centers itself via position: fixed when shown with
+       showModal() — position: relative here would put it back in normal
+       document flow instead, so it opens at its DOM position on the page
+       rather than centered in the current viewport. */
+    position: fixed;
     padding: 0;
     border: 0;
     border-radius: var(--style-border-radius-buttons, 4px);
