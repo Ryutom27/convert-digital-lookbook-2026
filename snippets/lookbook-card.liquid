@@ -1,0 +1,391 @@
+{%- comment -%}
+  Renders one lookbook: cover image/title/description from a `lookbook` metaobject,
+  alongside a shoppable row of the products featured in it. Product data (price,
+  image, variants) is deliberately not resolved here — only .handle is read from
+  the metaobject's product references. The `lookbook-component` custom element
+  fetches live product data from the Storefront API client-side, so market-based
+  pricing (AUD/JPY) resolves correctly per shopper.
+
+  Shared by sections/lookbook.liquid (merchant-picked lookbook) and
+  sections/lookbook-featured-in.liquid (product-page reverse lookup), so the
+  rendering and styling live in one place.
+
+  @param {object} lookbook - a `lookbook` metaobject
+  @see assets/lookbook.js
+
+  @example
+  {% render 'lookbook-card', lookbook: lookbook %}
+{%- endcomment -%}
+
+<script
+  src="{{ 'lookbook.js' | asset_url }}"
+  type="module"
+  fetchpriority="low"
+></script>
+
+{% liquid
+  assign products = lookbook.products.value
+  assign product_handles = products | map: 'handle' | join: ','
+%}
+
+<lookbook-component
+  class="lookbook__wrapper"
+  data-product-handles="{{ product_handles }}"
+  data-country="{{ localization.country.iso_code }}"
+  data-money-format="{{ shop.money_format | strip_html }}"
+  data-storefront-token="{{ settings.storefront_access_token | escape }}"
+  data-label-close="{{ 'accessibility.close_dialog' | t | escape }}"
+>
+  <div class="lookbook__grid">
+    <div class="lookbook__media">
+      {% if lookbook.image.value != blank %}
+        {% render 'image', image: lookbook.image.value, class: 'lookbook__image' %}
+      {% else %}
+        {{ 'lifestyle-1' | placeholder_svg_tag: 'lookbook__image lookbook__image--placeholder' }}
+      {% endif %}
+    </div>
+
+    <div class="lookbook__content sticky-content--desktop">
+      {% if lookbook.title.value != blank %}
+        <h2 class="lookbook__title h3">{{ lookbook.title.value }}</h2>
+      {% endif %}
+
+      {% if lookbook.description.value != blank %}
+        <div class="lookbook__description">{{ lookbook.description.value | newline_to_br }}</div>
+      {% endif %}
+
+      {% if products.size > 0 %}
+        <p class="lookbook__shop-label">Shop this look</p>
+        <ul class="lookbook__thumbs" ref="thumbList" role="list">
+          {% for product in products %}
+            <li
+              class="lookbook__thumb lookbook__thumb--loading"
+              data-handle="{{ product.handle }}"
+              aria-hidden="true"
+            ></li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+    </div>
+  </div>
+
+  <template ref="thumbIconTemplate">
+    <span class="lookbook__thumb-icon" aria-hidden="true">
+      {{ 'icon-plus.svg' | inline_asset_content }}
+    </span>
+  </template>
+
+  <template ref="selectCaretTemplate">
+    <span class="lookbook__dialog-variant-select-caret" aria-hidden="true">
+      {{ 'icon-caret.svg' | inline_asset_content }}
+    </span>
+  </template>
+
+  <dialog
+    class="lookbook__dialog"
+    ref="dialog"
+    aria-label="{{ 'accessibility.product_details' | t }}"
+  ></dialog>
+</lookbook-component>
+
+{% stylesheet %}
+  .lookbook__wrapper {
+    display: block;
+  }
+
+  /* Without this, sticky-content--desktop's top offset defaults to 0 (see
+     assets/base.css) and sticks right under/behind the header instead of
+     below it — same fix product-information-content.liquid applies to the
+     product page's sticky buy-box. */
+  body:has(#header-group #header-component[data-sticky-state='active'])
+    .lookbook__content.sticky-content--desktop {
+    --sticky-header-offset: var(--header-height);
+  }
+
+  .lookbook__grid {
+    display: flex;
+    flex-direction: column;
+    gap: var(--margin-lg, 24px);
+
+    /* Flex, not grid: position: sticky on a grid item is inconsistently
+       supported across browsers (notably Safari); it's much more reliable
+       as a flex item, which is why the layout uses flex here instead of
+       the grid technique media-with-content.liquid uses elsewhere. */
+    @media screen and (min-width: 750px) {
+      flex-direction: row;
+      align-items: flex-start;
+    }
+  }
+
+  .lookbook__media {
+    @media screen and (min-width: 750px) {
+      flex: 0 0 calc((100% / 12) * 7);
+    }
+  }
+
+  .lookbook__image,
+  .lookbook__image--placeholder {
+    width: 100%;
+    height: auto;
+    display: block;
+  }
+
+  .lookbook__content {
+    display: flex;
+    flex-direction: column;
+    gap: var(--margin-sm, 12px);
+
+    @media screen and (min-width: 750px) {
+      flex: 0 0 calc((100% / 12) * 5);
+    }
+  }
+
+  /* Same fix as .lookbook__dialog-content: h2/div/p all carry their own
+     default browser margin, which stacks on top of the gap above. */
+  .lookbook__content > * {
+    margin: 0;
+  }
+
+  .lookbook__description {
+    color: var(--color-foreground-subdued);
+  }
+
+  .lookbook__shop-label {
+    font-size: var(--font-size--sm);
+    font-weight: 500;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--color-foreground-subdued);
+  }
+
+  .lookbook__thumbs {
+    display: flex;
+    gap: var(--margin-xs, 8px);
+    overflow-x: auto;
+
+    /* A hard image edge sitting right after the base gap reads as tighter
+       than the same gap between two lines of text, which have their own
+       optical breathing room from line-height. This makes up the difference. */
+    margin-block-start: var(--margin-3xs, 4px);
+    padding: 0;
+    margin: 0;
+    list-style: none;
+    scroll-snap-type: x proximity;
+
+    /* Hide scrollbar, matches theme convention (see localization-form.liquid) */
+    scrollbar-width: none;
+
+    &::-webkit-scrollbar {
+      display: none;
+    }
+  }
+
+  .lookbook__thumb {
+    flex: 0 0 auto;
+    width: 92px;
+    scroll-snap-align: start;
+  }
+
+  .lookbook__thumb--loading {
+    aspect-ratio: 3 / 4;
+    border-radius: var(--style-border-radius-buttons, 4px);
+    background-color: rgb(var(--color-foreground-rgb) / var(--opacity-8, 0.08));
+    animation: lookbook-pulse 1.4s ease-in-out infinite;
+  }
+
+  .lookbook__thumb-button {
+    all: unset;
+    position: relative;
+    display: block;
+    width: 100%;
+    aspect-ratio: 3 / 4;
+    border-radius: var(--style-border-radius-buttons, 4px);
+    overflow: hidden;
+    cursor: pointer;
+  }
+
+  .lookbook__thumb-price {
+    display: block;
+    margin-block-start: var(--margin-3xs, 4px);
+    font-size: var(--font-size--sm);
+    color: var(--color-foreground-subdued);
+  }
+
+  .lookbook__thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
+  .lookbook__thumb-icon {
+    position: absolute;
+    bottom: 6px;
+    right: 6px;
+    width: 22px;
+    height: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: rgb(255 255 255 / 0.9);
+    color: #000;
+    pointer-events: none;
+  }
+
+  .lookbook__thumb-icon svg {
+    width: 10px;
+    height: 10px;
+  }
+
+  @keyframes lookbook-pulse {
+    0%,
+    100% {
+      opacity: 1;
+    }
+
+    50% {
+      opacity: 0.5;
+    }
+  }
+
+  .lookbook__dialog {
+    /* Native <dialog> centers itself via position: fixed when shown with
+       showModal() — position: relative here would put it back in normal
+       document flow instead, so it opens at its DOM position on the page
+       rather than centered in the current viewport. */
+    position: fixed;
+    padding: 0;
+    border: 0;
+    border-radius: var(--style-border-radius-buttons, 4px);
+    max-width: 320px;
+  }
+
+  .lookbook__dialog::backdrop {
+    background: rgb(0 0 0 / 0.3);
+  }
+
+  .lookbook__dialog-close {
+    /* 44px hit area meets Apple's minimum recommended touch target size,
+       even though the visible circle can look smaller. */
+    position: absolute;
+    top: var(--margin-3xs, 4px);
+    right: var(--margin-3xs, 4px);
+    width: 44px;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    background: none;
+    color: #000;
+    font-size: 20px;
+    line-height: 1;
+    cursor: pointer;
+    z-index: 1;
+  }
+
+  .lookbook__dialog-close::before {
+    content: '';
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: rgb(255 255 255 / 0.9);
+    position: absolute;
+    inset: 0;
+    margin: auto;
+    z-index: -1;
+  }
+
+  .lookbook__dialog-image {
+    width: 100%;
+    height: auto;
+    display: block;
+  }
+
+  .lookbook__dialog-content {
+    display: flex;
+    flex-direction: column;
+    gap: var(--margin-xs, 8px);
+    padding: var(--margin-md, 16px);
+  }
+
+  /* p/a/select all carry their own default browser margin, which stacks on
+     top of the gap above and doubles up the spacing between them. Reset it
+     so gap is the only thing controlling spacing. */
+  .lookbook__dialog-content > * {
+    margin: 0;
+  }
+
+  .lookbook__dialog-title {
+    font-size: var(--font-size--lg);
+    font-weight: 600;
+  }
+
+  .lookbook__dialog-compare-at {
+    color: var(--color-foreground-subdued);
+  }
+
+  .lookbook__dialog-description {
+    color: var(--color-foreground-subdued);
+    font-size: var(--font-size--sm);
+  }
+
+  .lookbook__dialog-link {
+    font-size: var(--font-size--sm);
+    text-decoration: underline;
+  }
+
+  .lookbook__dialog-variant-select-wrapper {
+    position: relative;
+  }
+
+  /* Matching padding/line-height tokens got the select and the button close,
+     but <select> can carry its own intrinsic sizing in some browsers that
+     doesn't fully respond to that. An explicit shared min-height guarantees
+     they're actually the same height, not just close — and 44px meets the
+     same touch-target guideline as the dialog's close button. */
+  .lookbook__dialog-variant-select,
+  .lookbook__dialog-add-to-cart {
+    min-height: 44px;
+  }
+
+  .lookbook__dialog-variant-select {
+    /* Was only ever given a width — everything else was raw browser-default
+       <select> styling sitting right above a fully custom-styled .button,
+       so the two read as two unrelated design systems stacked together.
+       Reusing the button's own tokens (not copied values) makes them read
+       as a deliberate pair, and keeps this in sync if those tokens change. */
+    appearance: none;
+    width: 100%;
+    padding-block: var(--button-padding-block);
+    padding-inline: var(--button-padding-inline);
+    padding-inline-end: calc(var(--button-padding-inline) + var(--icon-size-xs, 14px));
+    border-radius: var(--style-border-radius-buttons-primary);
+    border: var(--button-border-width, 1px) solid var(--color-border);
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-paragraph--family);
+    font-style: var(--font-paragraph--style);
+    font-weight: var(--font-paragraph--weight);
+    font-size: var(--font-paragraph--size);
+    line-height: var(--font-paragraph--line-height);
+  }
+
+  .lookbook__dialog-variant-select-caret {
+    width: var(--icon-size-xs, 14px);
+    height: var(--icon-size-xs, 14px);
+    position: absolute;
+    right: var(--button-padding-inline);
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    align-items: center;
+    pointer-events: none;
+  }
+
+  .lookbook__dialog-error {
+    color: var(--color-error, #d02e2e);
+    font-size: var(--font-size--sm);
+  }
+{% endstylesheet %}

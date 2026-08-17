@@ -1,0 +1,67 @@
+{%- comment -%}
+  Merchant-picked Lookbook, addable to any page via the theme customizer.
+  Rendering is shared with the product-page reverse lookup — see
+  snippets/lookbook-card.liquid.
+{%- endcomment -%}
+
+{% liquid
+  assign lookbook = section.settings.lookbook
+%}
+
+<div
+  class="section section--page-width lookbook spacing-style"
+  style="{% render 'spacing-style', settings: section.settings %}"
+>
+  {% if lookbook == blank %}
+    <div class="lookbook__onboarding placeholder-content">
+      Select a lookbook to display
+    </div>
+  {% else %}
+    {% render 'lookbook-card', lookbook: lookbook %}
+  {% endif %}
+</div>
+
+{% schema %}
+{
+  "name": "Lookbook",
+  "tag": "section",
+  "class": "section-lookbook",
+  "settings": [
+    {
+      "type": "metaobject",
+      "metaobject_type": "lookbook",
+      "id": "lookbook",
+      "label": "Lookbook"
+    },
+    {
+      "type": "header",
+      "content": "Padding"
+    },
+    {
+      "type": "range",
+      "id": "padding-block-start",
+      "label": "Top padding",
+      "min": 0,
+      "max": 100,
+      "step": 1,
+      "unit": "px",
+      "default": 48
+    },
+    {
+      "type": "range",
+      "id": "padding-block-end",
+      "label": "Bottom padding",
+      "min": 0,
+      "max": 100,
+      "step": 1,
+      "unit": "px",
+      "default": 48
+    }
+  ],
+  "presets": [
+    {
+      "name": "Lookbook"
+    }
+  ]
+}
+{% endschema %}
