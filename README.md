@@ -34,19 +34,17 @@ A native Shopify Lookbook feature for a fashion client trading in two markets (A
 | `image` | File (image) | The cover/hero image. |
 | `products` | List of products | The products featured in this lookbook. |
 
-No metaobject-level "Storefront API access" toggle needs to be enabled for this feature — the `lookbook` metaobject is only ever read server-side via native Liquid (`shop.metaobjects.lookbook.values`, `lookbook.products.value`), both for rendering a merchant-picked lookbook and for the product-page reverse lookup. The Storefront API is reserved entirely for fetching live `Product` data by handle (see below); it never queries metaobjects directly.
+Metaobjects are read server-side via native Liquid only (`shop.metaobjects.lookbook.values`) — never through the Storefront API, so no metaobject-level API access toggle needs enabling.
 
 ### Why "List of products," not a plain-text list of handles
 
-The brief's handles-only constraint is about the **runtime fetch/integration layer** — the theme is never allowed to resolve price, image, or other product data natively through Liquid; that has to come from a live Storefront API call. It isn't a constraint on the *admin data model*. Using Shopify's native product reference field gives merchants a real visual product picker in the admin (search, thumbnails, drag-to-reorder) instead of hand-typing handles into a text field, which is what "easily managed via the Shopify admin interface" calls for.
+We wanted lookbooks to be easily manageable in the Shopify admin. A native product reference field gives merchants a real visual picker — search, thumbnails, drag-to-reorder — instead of hand-typing product handles into a text field.
 
-The constraint is enforced in the code, not just by convention: every place that touches `lookbook.products.value` — `snippets/lookbook-card.liquid` (rendering) and `sections/lookbook-featured-in.liquid` (the reverse-lookup scan) — only ever reads `.handle` off each resolved product reference —
+This doesn't conflict with the brief's handles-only constraint, because that constraint is about the *runtime fetch layer*, not the admin data model: price, image, and every other product field are still only ever fetched live via the Storefront API, never resolved through Liquid. Only `.handle` is read server-side, and that's all that gets handed to JavaScript:
 
 ```liquid
 assign product_handles = lookbook.products.value | map: 'handle' | join: ','
 ```
-
-— and hand that off to JavaScript as a plain string. No `.price`, `.featured_image`, or any other product field is ever touched server-side. All of that comes back from the Storefront API at runtime instead.
 
 ## Runtime product fetching
 
@@ -59,47 +57,47 @@ query LookbookProducts($country: CountryCode) @inContext(country: $country) {
 }
 ```
 
-`$country` is deliberately nullable, not `CountryCode!` — if `localization.country.iso_code` is ever blank (an edge case in market resolution, or a theme-editor preview context), a non-null variable would fail GraphQL variable coercion for the *entire* batched request. Nullable, it just falls back to the shop's default market context instead of taking down every product in the lookbook over one missing value.
+A few deliberate details in that query:
 
-Each product gets its own aliased `product(handle: ...)` lookup in the same request. This avoids N+1 requests, and using exact-handle lookups (rather than a `query:` search filter) means a deleted or unpublished handle just comes back `null` for that one alias — the rest of the response is unaffected, and that product's placeholder is quietly removed rather than showing broken content.
-
-The API version is pinned as a constant (`API_VERSION` in `assets/lookbook.js`) rather than using `unstable`, so the query shape doesn't shift under this code without a deliberate bump. Shopify retires each version 12 months after release, so this needs occasional maintenance — a stale pin fails outright once its version is retired, rather than degrading quietly.
+- **`$country` is nullable**, not `CountryCode!`. If `localization.country.iso_code` is ever blank (an edge case in market resolution, or a theme-editor preview), a non-null variable would fail the *entire* batched request. Nullable, it just falls back to the shop's default market instead.
+- **Each product gets its own aliased lookup**, avoiding N+1 requests. Using exact-handle lookups (rather than a `query:` search filter) also means a deleted or unpublished handle just comes back `null` for that one alias — the rest of the response is unaffected, and that product's placeholder is quietly removed.
+- **The API version is pinned** as a constant (`API_VERSION` in `assets/lookbook.js`) rather than `unstable`, so the query shape can't shift without a deliberate bump. Shopify retires each version 12 months after release, so this needs occasional maintenance — a stale pin fails outright rather than degrading quietly.
 
 ### Auth
 
-The token is a **public Storefront API access token**, obtained via **Settings → Apps and sales channels → Headless → Create storefront**, pasted into the theme setting under **Storefront API**. This is the public token by design — it's meant to be readable client-side (sent as the `X-Shopify-Storefront-Access-Token` header), unlike the private token, which requires server-side use and buyer-IP forwarding and has no place in a browser-side fetch.
+The token is a **public Storefront API access token**, obtained via **Settings → Apps and sales channels → Headless → Create storefront**, pasted into the theme setting under **Storefront API**. It's public by design — meant to be readable client-side (sent as the `X-Shopify-Storefront-Access-Token` header) — unlike the private token, which requires server-side use and buyer-IP forwarding and has no place in a browser-side fetch.
 
 ## Market-based pricing (AUD/JPY)
 
-Two things had to line up for this to work correctly, and they're handled separately on purpose:
+Two things have to line up, handled separately on purpose:
 
-1. **Which country is the shopper in, right now?** This is resolved by Shopify's own localization system — via the header's manual country selector, or automatic IP-based market detection for first-time visitors (if enabled under Settings → Markets). Either way, the result lands in the same place: `localization.country.iso_code` in Liquid.
-2. **Getting the Storefront API to respect that.** The Storefront API's GraphQL endpoint does *not* read the localization cookie on its own — `@inContext(country: $country)` only uses what's explicitly passed as a variable. So the section outputs `localization.country.iso_code` into a `data-country` attribute at render time, and the JS reads it once and passes it into the query. Since switching markets triggers a full page reload, this single read-at-load is always correct — no extra logic needed to distinguish "shopper picked JPY" from "shopper was auto-detected as being in Japan."
+1. **Which country is the shopper in, right now?** Resolved by Shopify's own localization system — the header's manual country selector, or automatic IP-based detection for first-time visitors (if enabled under Settings → Markets). Either way, it lands in `localization.country.iso_code` in Liquid.
+2. **Getting the Storefront API to respect that.** The Storefront API doesn't read the localization cookie on its own — `@inContext(country: $country)` only uses what's explicitly passed in. So the section outputs `localization.country.iso_code` into a `data-country` attribute at render time, and the JS reads it once and passes it into the query. Switching markets triggers a full page reload, so this single read-at-load is always correct.
 
-**Compare-at pricing**: both `priceRange` and `compareAtPriceRange` are requested per product, per market, in the same query — so a product on sale in JPY but not AUD (or vice versa) resolves correctly and independently in each market, not just the base price.
+**Compare-at pricing**: both `priceRange` and `compareAtPriceRange` are requested per product, per market, in the same query — so a product on sale in JPY but not AUD (or vice versa) resolves correctly and independently in each market.
 
-**Currency formatting**: JPY has no decimal places; a naive formatter would render `¥1500.00` instead of `¥1,500`. `assets/lookbook.js` reuses the theme's existing `money-formatting.js` module (`formatMoney`) for the actual display formatting, rather than re-implementing it.
+**Currency formatting**: JPY has no decimal places, so a naive formatter would render `¥1500.00` instead of `¥1,500`. `assets/lookbook.js` reuses the theme's existing `money-formatting.js` (`formatMoney`) for display, rather than reimplementing it.
 
-Converting the Storefront API's response into that formatter's expected input needed its own fix, though: `money-formatting.js` also exports `convertMoneyToMinorUnits`, a *fuzzy* parser built for human-typed input (a price filter field) that has to guess whether a trailing digit group is a decimal or a thousands separator. For zero-decimal currencies that guess is always "thousands" — so JPY's `MoneyV2.amount` string (e.g. `"12000.0"`) got misread as `120000`, a 10x price inflation caught during testing. Since the API's amount is an unambiguous plain-decimal string, not human input, `#formatPrice` parses it directly with `getCurrencyDivisor` instead of routing it through that heuristic.
+Getting the API's response into that formatter's expected input needed its own fix, though. `money-formatting.js` also exports `convertMoneyToMinorUnits`, a *fuzzy* parser built for human-typed input (a price filter field) that guesses whether trailing digits are a decimal or a thousands separator — and for zero-decimal currencies, that guess is always wrong. It misread JPY's `MoneyV2.amount` (e.g. `"12000.0"`) as `120000`, a 10x price inflation caught during testing. Since the API's amount is an unambiguous plain-decimal string, not human input, `#formatPrice` parses it directly with `getCurrencyDivisor` instead of routing it through that heuristic.
 
 ## Making it shoppable
 
-This part is **not** in the written brief — it's feedback the client (via the hiring team) gave on a previous attempt: a lookbook that was just images with prices next to them, with no way to actually buy, wasn't good enough. Documenting it here explicitly so it reads as a deliberate addition, not scope creep.
+This wasn't in the written brief — it's considered feedback from a previous attempt, where a lookbook of just images and prices, with no way to actually buy, wasn't good enough.
 
 Clicking a thumbnail in the shoppable row opens a small dialog (image, title, price, a variant picker if there's more than one buyable option, and an Add to cart button). Add to cart posts to the standard `/cart/add.js` endpoint and dispatches the theme's existing `CartLinesUpdateEvent` — the same event `assets/product-form.js` dispatches after any other add-to-cart on the site. The existing cart drawer and cart icon already listen for this event and update themselves; nothing new was built for cart UI.
 
 ### Variants
 
-The query requests `variants(first: 100)` — Shopify's actual maximum variants per product, not an arbitrary guess, so every option combination is fetched rather than most of them.
+The query requests `variants(first: 100)` — Shopify's actual maximum variants per product, not an arbitrary guess, so every option combination is fetched.
 
-Sold-out variants still appear in the picker rather than being filtered out — they're rendered as disabled options labelled "- Sold out," so a shopper can see the full range a product comes in even when one option is unavailable, instead of a color or size just silently disappearing from the list. Selecting a different variant also swaps the dialog's image to that variant's own image where it has one (e.g. picking "Black" shows the black product shot, not the white one from `featuredImage`), falling back to the product's main image for variants that don't have a dedicated one.
+Sold-out variants still appear in the picker, rendered as disabled options labelled "- Sold out," so a shopper can see the full range a product comes in rather than a size or color silently disappearing. Selecting a different variant also swaps the dialog's image to that variant's own image where it has one (e.g. picking "Black" shows the black product shot, not the white one from `featuredImage`), falling back to the product's main image otherwise.
 
 ### Layout: a shoppable row beside the banner, not hotspot markers on the image
 
-Two options were considered for tying the shoppable part visually to the cover image:
+Two options were considered for tying the shoppable part to the cover image:
 
-- **Hotspot markers positioned on the image** (the theme has a native pattern for this, `sections/product-hotspots.liquid`) — visually striking, but its native block resolves products server-side via Liquid, which conflicts with the handles-only constraint; it would need to be rebuilt custom. It also needs new metaobject fields (an x/y position per product), and small fixed-position tap targets on an image are a known weak pattern on mobile.
-- **A shoppable row directly beside/below the image** (what's built) — the cover image sits in a two-column layout (modeled on the theme's existing `media-with-content` grid technique, so it collapses to stacked on mobile the same way that section already does), with a horizontally-scrollable product row in the content column. No schema change, no new mobile-specific interaction pattern, and the products read clearly as "featured in this image" by proximity.
+- **Hotspot markers on the image** (the theme has a native pattern for this, `sections/product-hotspots.liquid`) — visually striking, but its native block resolves products server-side via Liquid, conflicting with the handles-only constraint; it would need a custom rebuild. It also needs new metaobject fields (an x/y position per product), and small fixed-position tap targets are a known weak pattern on mobile.
+- **A shoppable row beside/below the image** (what's built) — the cover image sits in a two-column layout (modeled on the theme's existing `media-with-content` grid, so it collapses to stacked on mobile the same way), with a horizontally-scrollable product row in the content column. No schema change, no new mobile interaction pattern, and the products read clearly as "featured in this image" by proximity.
 
 Documented here as a conscious choice, with hotspot markers noted below as a possible future enhancement rather than something ruled out for lack of consideration.
 
@@ -107,15 +105,15 @@ Documented here as a conscious choice, with hotspot markers noted below as a pos
 
 A product doesn't know which lookbook(s) it's featured in — only lookbooks know their own product list. Two ways to answer "is this product in a lookbook":
 
-- **Runtime scan (what's built).** `sections/lookbook-featured-in.liquid` loops every `lookbook` metaobject entry and checks whether the current product's handle appears in its product list. This runs server-side in Liquid — it's O(n) in the number of lookbook entries per product-page render, but it's a native product-reference read, not a price/image resolution, so it doesn't touch the Storefront API or the handles-only constraint at all.
+- **Runtime scan (what's built).** `sections/lookbook-featured-in.liquid` loops every `lookbook` metaobject entry and checks whether the current product's handle appears in its product list. This runs server-side in Liquid — O(n) in the number of lookbook entries per product-page render — but it's a native product-reference read, not a price/image resolution, so it doesn't touch the Storefront API or the handles-only constraint at all.
 - **Synced back-reference (not built).** A metafield on the product, kept in sync via Shopify Flow whenever a lookbook's product list changes, would make this an O(1) metafield read instead of an O(n) scan. Rejected for this submission: it adds Flow trigger setup, handling the removal case, and sync testing — real work for a scaling concern that doesn't bite until a store has a large number of lookbook entries, which isn't indicated by the brief. Worth revisiting if the client's lookbook catalog grows large.
 
 ## Error handling & loading states
 
 - A deleted, unpublished, or mistyped product handle doesn't break the section — that one card's placeholder is removed, everything else renders normally.
-- If the Storefront API request itself fails (missing token, network error), it's logged to the console and the skeleton placeholders are removed rather than left pulsing forever — the section fails quietly rather than throwing, and the rest of the page is unaffected.
+- If the Storefront API request itself fails (missing token, network error), it's logged to the console and the skeleton placeholders are removed rather than left pulsing forever — the section fails quietly, and the rest of the page is unaffected.
 - While the batched request is in flight, product placeholders render as sized, pulsing skeleton boxes rather than an empty gap, so nothing flashes or jumps in once real content arrives.
-- Thumbnail and dialog images use the variant/product image's own `altText` from the Storefront API where one is set, falling back to the product title when it isn't — so alt text is never left blank. The lookbook's own `title` field renders as a visible heading (`<h2>`) rather than an ARIA label, so it's available to screen readers the same way any other section heading is.
+- Thumbnail and dialog images use the variant/product image's own `altText` from the Storefront API where one is set, falling back to the product title when it isn't — alt text is never left blank. The lookbook's own `title` field renders as a visible heading (`<h2>`) rather than an ARIA label, so it's available to screen readers the same way any other section heading is.
 
 ## Known limitations / possible future work
 
@@ -123,4 +121,4 @@ A product doesn't know which lookbook(s) it's featured in — only lookbooks kno
 - **Hotspot-style markers on the image**, as a richer alternative to the row layout, if the client is comfortable trading off the mobile tap-target concerns and a metaobject schema change (x/y position per product).
 - **Flow-synced back-reference metafield** for the product-page reverse lookup, once lookbook count grows large enough for the O(n) scan to matter.
 - New UI strings (e.g. "Shop the look") were kept as plain English rather than added to the theme's ~40 locale files, since this is a single-market-language build for this exercise; a production rollout would need those translated.
-- The dialog is a plain `<dialog>`, not the theme's shared `DialogComponent` (used by quick-add, search, and the cart tooltip). Not used from the start because none of what it adds — open/close animation, background-scroll lock, scroll-position restore — was needed to meet the brief; a native `<dialog>` inside the one `lookbook-component` element was the simplest thing that worked, without pulling in a second nested custom element. Adopting it later is possible but non-trivial: its dialog is a required ref on that separate component, and refs don't cross nested `*-component` boundaries in this theme, so every dialog touchpoint here would need rework to reach it. Deferred as a low-priority polish follow-up.
+- **Plain `<dialog>`**, not the theme's shared `DialogComponent` (used by quick-add, search, and the cart tooltip). It wasn't needed here — none of what `DialogComponent` adds (open/close animation, scroll lock, scroll-position restore) was required to meet the brief, and a native `<dialog>` inside one `lookbook-component` element was the simplest thing that worked. Adopting it later is possible but not trivial: its dialog is a required ref on a separate component, and refs don't cross nested `*-component` boundaries in this theme, so every touchpoint here would need rework. Deferred as low-priority polish.
