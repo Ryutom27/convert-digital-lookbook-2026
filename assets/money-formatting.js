@@ -72,7 +72,7 @@ function getCurrencyPrecision(currency) {
  * @param {string} currency - The currency code (e.g., 'USD', 'JPY')
  * @returns {number} The divisor for the currency
  */
-function getCurrencyDivisor(currency) {
+export function getCurrencyDivisor(currency) {
   return Math.pow(10, getCurrencyPrecision(currency));
 }
 

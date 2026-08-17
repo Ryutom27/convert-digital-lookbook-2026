@@ -1,6 +1,6 @@
 import { Component } from '@theme/component';
 import { fetchConfig } from '@theme/utilities';
-import { formatMoney, convertMoneyToMinorUnits } from '@theme/money-formatting';
+import { formatMoney, getCurrencyDivisor } from '@theme/money-formatting';
 import { CartLinesUpdateEvent, CartErrorEvent } from '@shopify/events';
 
 /**
@@ -402,8 +402,19 @@ export class LookbookComponent extends Component {
    * @param {string} moneyFormat
    */
   #formatPrice(price, moneyFormat) {
-    const minorUnits = convertMoneyToMinorUnits(price.amount, price.currencyCode);
-    return minorUnits === null ? price.amount : formatMoney(minorUnits, moneyFormat, price.currencyCode);
+    // price.amount is the Storefront API's MoneyV2 Decimal scalar — an
+    // unambiguous plain-decimal string (e.g. "12000.0" for JPY, "15.00" for
+    // AUD), never locale-formatted. Parsing it directly avoids the
+    // thousands-vs-decimal guessing convertMoneyToMinorUnits does for
+    // human-typed input, which misreads zero-decimal currencies like JPY
+    // (it has no fractional digits to expect, so a trailing ".0" gets
+    // folded into the whole number instead of discarded, inflating the
+    // price by a factor of 10).
+    const amount = Number.parseFloat(price.amount);
+    if (Number.isNaN(amount)) return price.amount;
+
+    const minorUnits = Math.round(amount * getCurrencyDivisor(price.currencyCode));
+    return formatMoney(minorUnits, moneyFormat, price.currencyCode);
   }
 
   /**
