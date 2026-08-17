@@ -29,10 +29,10 @@
     class="section section--page-width lookbook-featured-in spacing-style"
     style="{% render 'spacing-style', settings: section.settings %}"
   >
+    <p class="lookbook-featured-in__label">Featured in</p>
     {% for lb in shop.metaobjects.lookbook.values %}
       {% assign lb_handles = lb.products.value | map: 'handle' %}
       {% if lb_handles contains product.handle %}
-        <p class="lookbook-featured-in__label">Featured in</p>
         {% render 'lookbook-card', lookbook: lb %}
       {% endif %}
     {% endfor %}
@@ -40,12 +40,20 @@
 {% endif %}
 
 {% stylesheet %}
+  /* Matches .lookbook__shop-label's eyebrow-label treatment (see
+     snippets/lookbook-card.liquid) so this reads as a section label leading
+     into the (much larger) lookbook title below it, rather than a stray
+     line of body text. */
   .lookbook-featured-in__label {
+    font-size: var(--font-size--sm);
     font-weight: 500;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--color-foreground-subdued);
     margin-block-end: var(--margin-sm, 12px);
   }
 
-  .lookbook-featured-in > .lookbook__wrapper + .lookbook-featured-in__label {
+  .lookbook-featured-in > .lookbook__wrapper + .lookbook__wrapper {
     margin-block-start: var(--margin-xl, 32px);
   }
 {% endstylesheet %}
