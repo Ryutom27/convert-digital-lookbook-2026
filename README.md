@@ -2,6 +2,13 @@
 
 A native Shopify Lookbook feature for a fashion client trading in two markets (AUD, JPY). Built entirely with theme sections, a metaobject, and the Storefront API — no third-party apps.
 
+**tl;dr — the key calls, detail below:**
+- Metaobject uses a native **List of products** field, not plain-text handles — but only `.handle` is ever read from it server-side; price/image/variants come from the Storefront API at runtime, per the brief's constraint. ([why](#why-list-of-products-not-a-plain-text-list-of-handles))
+- All products in a lookbook are fetched in **one batched GraphQL request** (aliased `product(handle:...)` lookups), not one request per product. ([detail](#runtime-product-fetching))
+- `@inContext(country:...)` resolves price and compare-at correctly per AUD/JPY market. ([detail](#market-based-pricing-audjpy))
+- Product-page "featured in" uses a **runtime scan** over lookbook entries, not a synced back-reference metafield — a documented O(n) vs O(1) trade-off. ([detail](#product-page-reverse-lookup))
+- Shoppable row sits **beside** the cover image, not as hotspot markers on it — a deliberate call, not an oversight. ([why](#layout-a-shoppable-row-beside-the-banner-not-hotspot-markers-on-the-image))
+
 ## What's here
 
 - **`sections/lookbook.liquid`** — customizer section, addable to any page. Merchant picks a `lookbook` metaobject entry from a native picker.
